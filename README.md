@@ -22,4 +22,4 @@ make download-tlc
 make download-weather
 ```
 
-Downloaded TLC files are immutable under `data/bronze/`; reference sources and normalized weather are ignored by Git.
+Downloaded TLC files are immutable under `data/bronze/`; reference sources and normalized weather are ignored by Git..
