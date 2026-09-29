@@ -11,3 +11,7 @@ Never overwrite Bronze data. Each successful download has a separate SHA-256 man
 ## Source limitations
 
 TLC zone records contain zone IDs, not precise pickup/dropoff GPS coordinates. Open-Meteo is requested in `America/New_York`; later silver transformations must test DST-boundary joins explicitly.
+
+## Silver backfill
+
+Run `dbt build --project-dir dbt_project --profiles-dir dbt_project --vars '{target_month: 2024-01}'` from the repository root. This processes one immutable monthly partition into either `silver_trips_valid` or `silver_trips_quarantine`. Zone IDs 264/265 remain in valid Silver data with `is_unknown_or_outside_nyc = true`; do not use them as geographic training targets.

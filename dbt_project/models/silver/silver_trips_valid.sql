@@ -1,0 +1,43 @@
+{{ config(materialized='incremental', incremental_strategy='delete+insert', unique_key='trip_id', on_schema_change='fail') }}
+
+select
+    trip_id,
+    hvfhs_license_num,
+    dispatching_base_num,
+    originating_base_num,
+    request_datetime,
+    on_scene_datetime,
+    pickup_datetime,
+    dropoff_datetime,
+    pickup_zone_id,
+    dropoff_zone_id,
+    pickup_borough,
+    dropoff_borough,
+    pickup_zone_name,
+    dropoff_zone_name,
+    is_unknown_or_outside_nyc,
+    trip_miles,
+    reported_trip_seconds,
+    actual_trip_seconds,
+    wait_seconds,
+    driver_arrival_delay_seconds,
+    average_speed_mph,
+    base_passenger_fare,
+    tolls,
+    bcf,
+    sales_tax,
+    congestion_surcharge,
+    airport_fee,
+    tips,
+    driver_pay,
+    shared_request_flag,
+    shared_match_flag,
+    access_a_ride_flag,
+    wav_request_flag,
+    wav_match_flag,
+    ingestion_year,
+    ingestion_month_number,
+    ingestion_month
+from {{ ref('silver_trips_classified') }}
+where reject_reason is null
+  and {{ month_filter('ingestion_month') }}

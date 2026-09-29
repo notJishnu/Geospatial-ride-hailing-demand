@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: silver_trips_valid
+    description: Validated HVFHV trips. IDs 264/265 are retained but flagged as unknown/outside NYC.
+    columns:
+      - name: trip_id
+        tests: [not_null, unique]
+      - name: request_datetime
+        tests: [not_null]
+      - name: pickup_datetime
+        tests: [not_null]
+      - name: dropoff_datetime
+        tests: [not_null]
+      - name: pickup_zone_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_zone_lookup')
+              field: zone_id
+      - name: dropoff_zone_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_zone_lookup')
+              field: zone_id
+      - name: shared_request_flag
+        tests:
+          - accepted_values:
+              values: ['Y', 'N']
+      - name: shared_match_flag
+        tests:
+          - accepted_values:
+              values: ['Y', 'N']
+  - name: silver_trips_quarantine
+    description: Source trips rejected by exactly one deterministic data-quality rule.
+    columns:
+      - name: trip_id
+        tests: [not_null, unique]
+      - name: reject_reason
+        tests: [not_null]
+  - name: silver_weather_hourly
+    columns:
+      - name: weather_datetime_local
+        tests: [not_null, unique]
+  - name: silver_zone_geometry
+    columns:
+      - name: zone_id
+        tests: [not_null, unique]

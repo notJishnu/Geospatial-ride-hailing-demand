@@ -1,4 +1,4 @@
-.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather dbt-debug dbt-build
+.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build
 
 install:
 	uv sync --all-extras
@@ -34,8 +34,11 @@ download-ref:
 download-weather:
 	uv run python -m ingestion.download_weather
 
+profile:
+	uv run python -m profiling.profile_hvfhv
+
 dbt-debug:
-	uv run dbt --project-dir dbt_project --profiles-dir dbt_project debug
+	uv run dbt debug --project-dir dbt_project --profiles-dir dbt_project
 
 dbt-build:
-	uv run dbt --project-dir dbt_project --profiles-dir dbt_project build
+	uv run dbt build --project-dir dbt_project --profiles-dir dbt_project

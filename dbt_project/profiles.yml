@@ -1,0 +1,8 @@
+nyc_mobility:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: data/warehouse/nyc_mobility.duckdb
+      schema: main
+      threads: 4

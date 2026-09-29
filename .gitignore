@@ -12,6 +12,10 @@ data/gold/
 data/reference/
 data/manifests/
 data/warehouse/
+data/logs/
+data/profiles/
+dbt_project/target/
+dbt_project/logs/
 mlruns/
 artifacts/
 .env

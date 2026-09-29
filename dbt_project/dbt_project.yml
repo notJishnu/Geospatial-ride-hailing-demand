@@ -1,0 +1,36 @@
+name: nyc_mobility
+version: "1.0.0"
+config-version: 2
+profile: nyc_mobility
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  bronze_hvfhv_glob: "data/bronze/hvfhv/year=*/month=*/*.parquet"
+  zone_lookup_path: "data/reference/sources/taxi_zone_lookup.csv"
+  zone_shapefile_path: "data/reference/zones/taxi_zones/taxi_zones/taxi_zones.shp"
+  weather_glob: "data/reference/weather/year=*/month=*/*.parquet"
+  h3_resolution: 8
+  target_month: null
+  month_boundary_tolerance_hours: 6
+  min_trip_seconds: 60
+  max_trip_seconds: 21600
+  max_trip_miles: 200
+  max_average_speed_mph: 80
+
+models:
+  nyc_mobility:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +materialized: view
+    silver:
+      +materialized: table
+      silver_zone_geometry:
+        +zone_shapefile_path: "data/reference/zones/taxi_zones/taxi_zones/taxi_zones.shp"
+        +h3_resolution: 8

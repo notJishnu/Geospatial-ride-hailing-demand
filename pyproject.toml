@@ -38,6 +38,7 @@ packages = ["ingestion"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = ["integration: requires a built local DuckDB warehouse"]
 
 [tool.ruff]
 line-length = 100

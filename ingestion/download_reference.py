@@ -8,7 +8,12 @@ from pathlib import Path
 
 import polars as pl
 
-from ingestion.download_utils import DownloadManifest, download_file, matches_manifest, write_manifest
+from ingestion.download_utils import (
+    DownloadManifest,
+    download_file,
+    matches_manifest,
+    write_manifest,
+)
 from ingestion.settings import load_settings
 
 REQUIRED_ZONE_COLUMNS = {"LocationID", "Borough", "Zone", "service_zone"}
@@ -54,10 +59,14 @@ def _download_source(
     if destination.exists() and manifest_path.exists():
         if not matches_manifest(destination, manifest_path):
             raise ValueError(f"Existing source checksum does not match manifest: {destination}")
-        logging.getLogger(__name__).info("Source and manifest already exist; skipping %s", destination)
+        logging.getLogger(__name__).info(
+            "Source and manifest already exist; skipping %s", destination
+        )
         return None
     if destination.exists() or manifest_path.exists():
-        raise FileExistsError(f"Incomplete idempotency state for {destination}; inspect before retrying")
+        raise FileExistsError(
+            f"Incomplete idempotency state for {destination}; inspect before retrying"
+        )
     options = settings["ingestion"]
     manifest = download_file(
         url,
@@ -88,8 +97,12 @@ def download_reference_data(settings: dict) -> None:
             raise
 
     archive_path = source_dir / "taxi_zones.zip"
-    _download_source(zones["geometry_url"], archive_path, manifest_dir / "taxi_zones.json", settings)
-    extract_zone_archive(archive_path, Path(settings["paths"]["reference"]) / "zones" / "taxi_zones")
+    _download_source(
+        zones["geometry_url"], archive_path, manifest_dir / "taxi_zones.json", settings
+    )
+    extract_zone_archive(
+        archive_path, Path(settings["paths"]["reference"]) / "zones" / "taxi_zones"
+    )
 
 
 def main() -> None:

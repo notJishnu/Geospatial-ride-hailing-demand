@@ -21,7 +21,9 @@ from ingestion.settings import load_settings
 def month_date_range(month: str) -> tuple[date, date]:
     """Return inclusive first and final dates for a YYYY-MM month."""
     year, month_number = (int(part) for part in parse_month(month).split("-"))
-    return date(year, month_number, 1), date(year, month_number, calendar.monthrange(year, month_number)[1])
+    return date(year, month_number, 1), date(
+        year, month_number, calendar.monthrange(year, month_number)[1]
+    )
 
 
 def fetch_hourly_weather(start: date, end: date, settings: dict) -> dict:
@@ -62,8 +64,16 @@ def normalize_weather(payload: dict, timezone: str) -> pl.DataFrame:
 def write_weather_partition(frame: pl.DataFrame, month: str, settings: dict) -> DownloadManifest:
     """Write one normalized weather partition atomically and record its checksum."""
     year, month_number = parse_month(month).split("-")
-    destination = Path(settings["paths"]["reference"]) / "weather" / f"year={year}" / f"month={month_number}" / "weather_hourly.parquet"
-    manifest_path = Path(settings["paths"]["manifests"]) / "weather" / f"weather_hourly_{month}.json"
+    destination = (
+        Path(settings["paths"]["reference"])
+        / "weather"
+        / f"year={year}"
+        / f"month={month_number}"
+        / "weather_hourly.parquet"
+    )
+    manifest_path = (
+        Path(settings["paths"]["manifests"]) / "weather" / f"weather_hourly_{month}.json"
+    )
     if destination.exists() or manifest_path.exists():
         raise FileExistsError(f"Refusing to overwrite weather partition: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -74,7 +84,9 @@ def write_weather_partition(frame: pl.DataFrame, month: str, settings: dict) -> 
         temporary.unlink(missing_ok=True)
         raise ValueError("Weather partition is unexpectedly small")
     os.replace(temporary, destination)
-    manifest = DownloadManifest("Open-Meteo historical API", str(destination), len(data), hashlib.sha256(data).hexdigest())
+    manifest = DownloadManifest(
+        "Open-Meteo historical API", str(destination), len(data), hashlib.sha256(data).hexdigest()
+    )
     write_manifest(manifest, manifest_path)
     return manifest
 
@@ -82,16 +94,26 @@ def write_weather_partition(frame: pl.DataFrame, month: str, settings: dict) -> 
 def download_month(month: str, settings: dict) -> DownloadManifest | None:
     """Idempotently download, normalize, and manifest one month of hourly weather."""
     month = parse_month(month)
-    manifest_path = Path(settings["paths"]["manifests"]) / "weather" / f"weather_hourly_{month}.json"
+    manifest_path = (
+        Path(settings["paths"]["manifests"]) / "weather" / f"weather_hourly_{month}.json"
+    )
     year, month_number = month.split("-")
-    destination = Path(settings["paths"]["reference"]) / "weather" / f"year={year}" / f"month={month_number}" / "weather_hourly.parquet"
+    destination = (
+        Path(settings["paths"]["reference"])
+        / "weather"
+        / f"year={year}"
+        / f"month={month_number}"
+        / "weather_hourly.parquet"
+    )
     if destination.exists() and manifest_path.exists():
         if not matches_manifest(destination, manifest_path):
             raise ValueError(f"Existing weather checksum does not match manifest: {destination}")
         logging.getLogger(__name__).info("Weather partition already exists; skipping %s", month)
         return None
     if destination.exists() or manifest_path.exists():
-        raise FileExistsError(f"Incomplete idempotency state for weather {month}; inspect before retrying")
+        raise FileExistsError(
+            f"Incomplete idempotency state for weather {month}; inspect before retrying"
+        )
     start, end = month_date_range(month)
     payload = fetch_hourly_weather(start, end, settings)
     frame = normalize_weather(payload, settings["sources"]["weather"]["timezone"])

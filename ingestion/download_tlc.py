@@ -9,7 +9,12 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from ingestion.download_utils import DownloadManifest, download_file, matches_manifest, write_manifest
+from ingestion.download_utils import (
+    DownloadManifest,
+    download_file,
+    matches_manifest,
+    write_manifest,
+)
 from ingestion.settings import load_settings
 
 MONTH_PATTERN = re.compile(r"^20\d{2}-(0[1-9]|1[0-2])$")
@@ -38,7 +43,13 @@ def download_month(month: str, settings: dict) -> DownloadManifest | None:
     """Idempotently download, validate, and manifest one monthly TLC file."""
     month = parse_month(month)
     year, month_number = month.split("-")
-    destination = Path(settings["paths"]["bronze"]) / "hvfhv" / f"year={year}" / f"month={month_number}" / f"fhvhv_tripdata_{month}.parquet"
+    destination = (
+        Path(settings["paths"]["bronze"])
+        / "hvfhv"
+        / f"year={year}"
+        / f"month={month_number}"
+        / f"fhvhv_tripdata_{month}.parquet"
+    )
     manifest_path = Path(settings["paths"]["manifests"]) / "tlc" / f"fhvhv_tripdata_{month}.json"
     if destination.exists() and manifest_path.exists():
         if not matches_manifest(destination, manifest_path):
