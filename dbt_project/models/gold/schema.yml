@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: dim_zone
+    description: One TLC zone with display-centroid attributes and H3 index.
+    columns:
+      - name: zone_id
+        tests: [not_null, unique]
+  - name: dim_date_hour
+    description: One local NYC hour enriched with weather, holidays, and configured events.
+    columns:
+      - name: date_hour
+        tests: [not_null, unique]
+  - name: fct_trips
+    description: One valid Silver trip enriched at its pickup hour; includes unknown zone flags.
+    columns:
+      - name: trip_id
+        tests: [not_null, unique]
+  - name: agg_zone_hour_demand
+    description: Zone-hour demand excluding zone IDs 264 and 265.
+    columns:
+      - name: zone_hour_id
+        tests: [not_null, unique]
+      - name: trip_count
+        tests: [not_null]
+  - name: agg_od_matrix
+    columns:
+      - name: od_hour_id
+        tests: [not_null, unique]
+  - name: kpi_zone_daily
+    columns:
+      - name: zone_day_id
+        tests: [not_null, unique]
+  - name: kpi_driver_economics
+    columns:
+      - name: economics_day_id
+        tests: [not_null, unique]

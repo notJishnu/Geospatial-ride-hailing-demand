@@ -14,6 +14,7 @@ vars:
   zone_lookup_path: "data/reference/sources/taxi_zone_lookup.csv"
   zone_shapefile_path: "data/reference/zones/taxi_zones/taxi_zones/taxi_zones.shp"
   weather_glob: "data/reference/weather/year=*/month=*/*.parquet"
+  calendar_path: "data/reference/calendar/calendar_dates.parquet"
   h3_resolution: 8
   target_month: null
   month_boundary_tolerance_hours: 6
@@ -34,3 +35,5 @@ models:
       silver_zone_geometry:
         +zone_shapefile_path: "data/reference/zones/taxi_zones/taxi_zones/taxi_zones.shp"
         +h3_resolution: 8
+    gold:
+      +materialized: table

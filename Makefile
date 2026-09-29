@@ -34,6 +34,9 @@ download-ref:
 download-weather:
 	uv run python -m ingestion.download_weather
 
+build-calendar:
+	uv run python -m ingestion.build_calendar
+
 profile:
 	uv run python -m profiling.profile_hvfhv
 

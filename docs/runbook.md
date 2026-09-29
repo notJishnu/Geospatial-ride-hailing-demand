@@ -15,3 +15,7 @@ TLC zone records contain zone IDs, not precise pickup/dropoff GPS coordinates. O
 ## Silver backfill
 
 Run `dbt build --project-dir dbt_project --profiles-dir dbt_project --vars '{target_month: 2024-01}'` from the repository root. This processes one immutable monthly partition into either `silver_trips_valid` or `silver_trips_quarantine`. Zone IDs 264/265 remain in valid Silver data with `is_unknown_or_outside_nyc = true`; do not use them as geographic training targets.
+
+## Gold build
+
+Run `python -m ingestion.build_calendar`, then `dbt build --project-dir dbt_project --profiles-dir dbt_project --select +gold+ --vars '{target_month: 2024-01}'`. Gold facts retain valid trips; geographic zone, OD, and demand marts exclude zone IDs 264/265. The holiday calendar is generated from the configured month list and manual events in `config/events.csv`.

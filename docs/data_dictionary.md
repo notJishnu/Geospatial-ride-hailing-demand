@@ -23,3 +23,11 @@ Hourly Open-Meteo measurements, keyed by local `weather_datetime_local` with the
 ### `silver_zone_geometry`
 
 One TLC zone polygon reference row per `zone_id`, with WGS84 centroid longitude/latitude and an H3 resolution-8 cell calculated from that centroid. This is a zone-level display/indexing aid; it is not individual trip GPS data.
+
+## Gold tables
+
+`fct_trips` retains one validated trip and adds pickup-hour weather, date flags, driver economics, and the documented approximate platform take (`base_passenger_fare - driver_pay`). It is not a verified platform-margin measure.
+
+`dim_zone` exposes zone lookup and display-centroid attributes; `dim_date_hour` provides local-time weather, holiday, and manual-event attributes.
+
+`agg_zone_hour_demand`, `agg_od_matrix`, and `kpi_zone_daily` exclude zone IDs 264/265 from geographic aggregation. `kpi_driver_economics` is grouped by licensed HVFHS base/day, not individual drivers, because the source contains no driver identities.
