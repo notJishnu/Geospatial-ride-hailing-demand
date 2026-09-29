@@ -19,3 +19,7 @@ Run `dbt build --project-dir dbt_project --profiles-dir dbt_project --vars '{tar
 ## Gold build
 
 Run `python -m ingestion.build_calendar`, then `dbt build --project-dir dbt_project --profiles-dir dbt_project --select +gold+ --vars '{target_month: 2024-01}'`. Gold facts retain valid trips; geographic zone, OD, and demand marts exclude zone IDs 264/265. The holiday calendar is generated from the configured month list and manual events in `config/events.csv`.
+
+## Demand model
+
+Run `python -m ml.train_demand` after the Gold build. This saves a local LightGBM artifact and metrics under `artifacts/demand/` and logs the run to local `mlruns/`; neither is committed. The model evaluates chronological validation/test windows only.

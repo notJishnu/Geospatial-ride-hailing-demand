@@ -10,9 +10,11 @@ import joblib
 import lightgbm as lgb
 import mlflow
 import pandas as pd
+from statsforecast import StatsForecast
+from statsforecast.models import AutoETS
 
 from ingestion.settings import load_settings
-from ml.evaluate import demand_metrics
+from ml.evaluate import demand_metrics, demand_slice_metrics
 from ml.features import build_demand_features, demand_feature_columns
 
 
@@ -51,6 +53,34 @@ def seasonal_naive_predictions(frame: pd.DataFrame, lag_hours: int = 168) -> pd.
     return frame.groupby("zone_id", sort=False)["trip_count"].shift(lag_hours).fillna(0.0)
 
 
+def statsforecast_top_zone_metrics(
+    frame: pd.DataFrame, test: pd.DataFrame, top_n: int
+) -> dict[str, float]:
+    """Evaluate a chronological AutoETS benchmark on the highest-volume zones."""
+    top_zones = (
+        frame.groupby("zone_id", as_index=False)["trip_count"]
+        .sum()
+        .nlargest(top_n, "trip_count")["zone_id"]
+        .tolist()
+    )
+    cutoff = test["date_hour"].min()
+    training = frame.loc[(frame["zone_id"].isin(top_zones)) & (frame["date_hour"] < cutoff)].copy()
+    evaluation = test.loc[test["zone_id"].isin(top_zones)].copy()
+    sf_input = training.rename(
+        columns={"zone_id": "unique_id", "date_hour": "ds", "trip_count": "y"}
+    )[["unique_id", "ds", "y"]]
+    forecast = StatsForecast(models=[AutoETS(season_length=24)], freq="h", n_jobs=1).forecast(
+        df=sf_input, h=evaluation["date_hour"].nunique()
+    )
+    merged = evaluation.merge(
+        forecast.rename(columns={"unique_id": "zone_id", "ds": "date_hour"}),
+        on=["zone_id", "date_hour"],
+        how="inner",
+        validate="one_to_one",
+    )
+    return demand_metrics(merged["trip_count"], merged["AutoETS"])
+
+
 def train_and_evaluate(settings: dict) -> dict:
     """Train chronological model and log a reproducible local MLflow run."""
     demand_settings = settings["forecasting"]["demand"]
@@ -61,8 +91,7 @@ def train_and_evaluate(settings: dict) -> dict:
         rolling_windows=demand_settings["rolling_windows_hours"],
     )
     max_lag = max(max(demand_settings["lag_hours"]), max(demand_settings["rolling_windows_hours"]))
-    featured = featured.groupby("zone_id", group_keys=False).apply(lambda rows: rows.iloc[max_lag:])
-    featured = featured.reset_index(drop=True)
+    featured = featured.groupby("zone_id", group_keys=False).tail(-max_lag).reset_index(drop=True)
     final_hour = featured["date_hour"].max()
     test_start = final_hour - pd.Timedelta(days=demand_settings["test_days"] - 1)
     validation_start = test_start - pd.Timedelta(days=demand_settings["validation_days"])
@@ -79,10 +108,36 @@ def train_and_evaluate(settings: dict) -> dict:
     )
     test_predictions = pd.Series(model.predict(test[feature_columns]), index=test.index)
     test_baseline = seasonal_naive_predictions(featured).loc[test.index]
+    test_report = test.copy()
+    test_report["prediction"] = test_predictions
+    test_report["weather_slice"] = (
+        test_report["precipitation_mm"].gt(0).map({True: "wet", False: "dry"})
+    )
+    zone_volume = train.groupby("zone_id")["trip_count"].sum()
+    test_report["zone_volume_tier"] = pd.qcut(
+        test_report["zone_id"].map(zone_volume),
+        q=3,
+        labels=["low", "medium", "high"],
+        duplicates="drop",
+    ).astype(str)
     metrics = {
         "validation_lightgbm": demand_metrics(validation["trip_count"], validation_predictions),
         "test_lightgbm": demand_metrics(test["trip_count"], test_predictions),
         "test_seasonal_naive": demand_metrics(test["trip_count"], test_baseline),
+        "test_autoets_top_zones": statsforecast_top_zone_metrics(
+            frame, test, demand_settings["statsforecast_top_zones"]
+        ),
+        "test_slices": {
+            "hour_of_day": demand_slice_metrics(
+                test_report, "trip_count", "prediction", "hour_of_day"
+            ),
+            "weather": demand_slice_metrics(
+                test_report, "trip_count", "prediction", "weather_slice"
+            ),
+            "zone_volume_tier": demand_slice_metrics(
+                test_report, "trip_count", "prediction", "zone_volume_tier"
+            ),
+        },
     }
     output_dir = Path("artifacts/demand")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -103,10 +158,17 @@ def train_and_evaluate(settings: dict) -> dict:
         )
         mlflow.log_metrics(
             {
+                f"test_autoets_top_zones_{name}": value
+                for name, value in metrics["test_autoets_top_zones"].items()
+            }
+        )
+        mlflow.log_metrics(
+            {
                 f"test_seasonal_naive_{name}": value
                 for name, value in metrics["test_seasonal_naive"].items()
             }
         )
+        mlflow.lightgbm.log_model(model, "lightgbm_demand_model")
         mlflow.log_artifact(str(output_dir / "metrics.json"))
     return metrics
 

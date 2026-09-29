@@ -54,6 +54,7 @@ forecasting:
     validation_days: 7
     lag_hours: [1, 2, 3, 24, 168]
     rolling_windows_hours: [24, 168]
+    statsforecast_top_zones: 10
     lightgbm:
       learning_rate: 0.05
       n_estimators: 500

@@ -18,3 +18,13 @@ def demand_metrics(actual: pd.Series, predicted: pd.Series) -> dict[str, float]:
         "wape": float(np.abs(errors).sum() / denominator) if denominator else 0.0,
         "bias": float(errors.sum() / denominator) if denominator else 0.0,
     }
+
+
+def demand_slice_metrics(
+    frame: pd.DataFrame, actual_column: str, predicted_column: str, by: str
+) -> dict[str, dict[str, float]]:
+    """Calculate demand metrics independently for every non-empty reporting slice."""
+    return {
+        str(slice_value): demand_metrics(group[actual_column], group[predicted_column])
+        for slice_value, group in frame.groupby(by, dropna=False)
+    }
