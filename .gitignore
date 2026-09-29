@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.duckdb
+*.duckdb.wal
+data/bronze/
+data/silver/
+data/gold/
+data/reference/
+data/manifests/
+data/warehouse/
+mlruns/
+artifacts/
+.env

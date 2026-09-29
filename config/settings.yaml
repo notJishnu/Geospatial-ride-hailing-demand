@@ -1,0 +1,48 @@
+project:
+  name: nyc-mobility-analytics
+  timezone: America/New_York
+  random_seed: 42
+
+months:
+  - "2024-01"
+
+paths:
+  bronze: data/bronze
+  silver: data/silver
+  gold: data/gold
+  reference: data/reference
+  manifests: data/manifests
+  warehouse: data/warehouse/nyc_mobility.duckdb
+
+sources:
+  tlc:
+    trip_data_url_template: "https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_{month}.parquet"
+    trip_data_page: "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"
+    data_dictionary: "https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_hvfhs.pdf"
+  zones:
+    lookup_url: "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+    geometry_url: "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zones.zip"
+  weather:
+    archive_url: "https://archive-api.open-meteo.com/v1/archive"
+    latitude: 40.71
+    longitude: -74.01
+    timezone: America/New_York
+    hourly: [temperature_2m, precipitation, snowfall, wind_speed_10m]
+
+ingestion:
+  timeout_seconds: 120
+  chunk_size_bytes: 1048576
+  min_file_size_bytes: 1024
+  overwrite: false
+  checksum_algorithm: sha256
+
+cleaning:
+  min_trip_seconds: 60
+  max_trip_seconds: 21600
+  max_trip_miles: 200
+  max_average_speed_mph: 80
+  unknown_zone_ids: [264, 265]
+  month_boundary_tolerance_hours: 6
+
+splits:
+  test_weeks: 4
