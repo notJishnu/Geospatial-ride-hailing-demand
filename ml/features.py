@@ -31,6 +31,11 @@ def build_demand_features(
         result[f"rolling_mean_{window}h"] = grouped_target.transform(
             lambda values, window=window: values.shift(1).rolling(window, min_periods=1).mean()
         )
+    for weather_column in ("precipitation_mm", "temperature_2m_c"):
+        if weather_column in result.columns:
+            result[f"{weather_column}_lag_1h"] = result.groupby("zone_id", sort=False)[
+                weather_column
+            ].shift(1)
     result["hour_of_day"] = result["date_hour"].dt.hour
     result["day_of_week"] = result["date_hour"].dt.dayofweek
     result["is_weekend"] = (result["day_of_week"] >= 5).astype(int)
@@ -47,6 +52,8 @@ def demand_feature_columns(frame: pd.DataFrame) -> list[str]:
         "ingestion_month",
         "event_name",
         "holiday_name",
+        "precipitation_mm",
+        "temperature_2m_c",
     }
     return [
         column

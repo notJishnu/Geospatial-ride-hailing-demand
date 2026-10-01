@@ -1,4 +1,4 @@
-.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build
+.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build train-demand
 
 install:
 	uv sync --all-extras
@@ -45,3 +45,6 @@ dbt-debug:
 
 dbt-build:
 	uv run dbt build --project-dir dbt_project --profiles-dir dbt_project
+
+train-demand:
+	uv run python -m ml.train_demand

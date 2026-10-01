@@ -22,4 +22,4 @@ Run `python -m ingestion.build_calendar`, then `dbt build --project-dir dbt_proj
 
 ## Demand model
 
-Run `python -m ml.train_demand` after the Gold build. This saves a local LightGBM artifact and metrics under `artifacts/demand/` and logs the run to local `mlruns/`; neither is committed. The model evaluates chronological validation/test windows only.
+Run `python -m ml.train_demand` (or `make train-demand`) after the Gold build. This saves a local LightGBM candidate and metrics under `artifacts/demand/` and logs the run to local `mlruns/`; neither is committed. The model evaluates chronological validation/test windows and writes the WAPE-selected champion to `metrics.json`.

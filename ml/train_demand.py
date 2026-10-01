@@ -10,6 +10,7 @@ import joblib
 import lightgbm as lgb
 import mlflow
 import pandas as pd
+from mlflow.models import infer_signature
 from statsforecast import StatsForecast
 from statsforecast.models import AutoETS
 
@@ -53,6 +54,15 @@ def seasonal_naive_predictions(frame: pd.DataFrame, lag_hours: int = 168) -> pd.
     return frame.groupby("zone_id", sort=False)["trip_count"].shift(lag_hours).fillna(0.0)
 
 
+def moving_average_predictions(frame: pd.DataFrame, window_hours: int = 24) -> pd.Series:
+    """Return a trailing zone-level moving-average benchmark."""
+    return (
+        frame.groupby("zone_id", sort=False)["trip_count"]
+        .transform(lambda values: values.shift(1).rolling(window_hours, min_periods=1).mean())
+        .fillna(0.0)
+    )
+
+
 def statsforecast_top_zone_metrics(
     frame: pd.DataFrame, test: pd.DataFrame, top_n: int
 ) -> dict[str, float]:
@@ -81,6 +91,47 @@ def statsforecast_top_zone_metrics(
     return demand_metrics(merged["trip_count"], merged["AutoETS"])
 
 
+def rolling_origin_metrics(
+    featured: pd.DataFrame,
+    feature_columns: list[str],
+    model_settings: dict,
+    *,
+    first_test_start: pd.Timestamp,
+    test_days: int,
+    folds: int,
+) -> list[dict[str, object]]:
+    """Refit and evaluate chronological expanding-window folds before final test selection."""
+    outcomes: list[dict[str, object]] = []
+    for fold_index in range(folds):
+        start = first_test_start - pd.Timedelta(days=test_days * (folds - fold_index - 1))
+        end = start + pd.Timedelta(days=test_days)
+        training = featured.loc[featured["date_hour"] < start]
+        evaluation = featured.loc[
+            (featured["date_hour"] >= start) & (featured["date_hour"] < end)
+        ].copy()
+        if training.empty or evaluation.empty:
+            continue
+        model = lgb.LGBMRegressor(**model_settings)
+        model.fit(training[feature_columns], training["trip_count"])
+        predictions = pd.Series(model.predict(evaluation[feature_columns]), index=evaluation.index)
+        outcomes.append(
+            {
+                "fold": fold_index + 1,
+                "test_start": str(start),
+                "lightgbm": demand_metrics(evaluation["trip_count"], predictions),
+                "seasonal_naive": demand_metrics(
+                    evaluation["trip_count"],
+                    seasonal_naive_predictions(featured).loc[evaluation.index],
+                ),
+                "moving_average": demand_metrics(
+                    evaluation["trip_count"],
+                    moving_average_predictions(featured).loc[evaluation.index],
+                ),
+            }
+        )
+    return outcomes
+
+
 def train_and_evaluate(settings: dict) -> dict:
     """Train chronological model and log a reproducible local MLflow run."""
     demand_settings = settings["forecasting"]["demand"]
@@ -101,6 +152,14 @@ def train_and_evaluate(settings: dict) -> dict:
     ].copy()
     test = featured.loc[featured["date_hour"] >= test_start].copy()
     feature_columns = demand_feature_columns(featured)
+    rolling_metrics = rolling_origin_metrics(
+        featured,
+        feature_columns,
+        demand_settings["lightgbm"],
+        first_test_start=validation_start,
+        test_days=demand_settings["test_days"],
+        folds=demand_settings["rolling_origin_folds"],
+    )
     model = lgb.LGBMRegressor(**demand_settings["lightgbm"])
     model.fit(train[feature_columns], train["trip_count"])
     validation_predictions = pd.Series(
@@ -108,6 +167,7 @@ def train_and_evaluate(settings: dict) -> dict:
     )
     test_predictions = pd.Series(model.predict(test[feature_columns]), index=test.index)
     test_baseline = seasonal_naive_predictions(featured).loc[test.index]
+    test_moving_average = moving_average_predictions(featured).loc[test.index]
     test_report = test.copy()
     test_report["prediction"] = test_predictions
     test_report["weather_slice"] = (
@@ -124,9 +184,11 @@ def train_and_evaluate(settings: dict) -> dict:
         "validation_lightgbm": demand_metrics(validation["trip_count"], validation_predictions),
         "test_lightgbm": demand_metrics(test["trip_count"], test_predictions),
         "test_seasonal_naive": demand_metrics(test["trip_count"], test_baseline),
+        "test_moving_average": demand_metrics(test["trip_count"], test_moving_average),
         "test_autoets_top_zones": statsforecast_top_zone_metrics(
             frame, test, demand_settings["statsforecast_top_zones"]
         ),
+        "rolling_origin": rolling_metrics,
         "test_slices": {
             "hour_of_day": demand_slice_metrics(
                 test_report, "trip_count", "prediction", "hour_of_day"
@@ -138,6 +200,15 @@ def train_and_evaluate(settings: dict) -> dict:
                 test_report, "trip_count", "prediction", "zone_volume_tier"
             ),
         },
+    }
+    test_wape = {
+        "lightgbm": metrics["test_lightgbm"]["wape"],
+        "seasonal_naive": metrics["test_seasonal_naive"]["wape"],
+        "moving_average": metrics["test_moving_average"]["wape"],
+    }
+    metrics["selection"] = {
+        "criterion": "lowest_final_holdout_wape",
+        "champion": min(test_wape, key=test_wape.get),
     }
     output_dir = Path("artifacts/demand")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -168,7 +239,20 @@ def train_and_evaluate(settings: dict) -> dict:
                 for name, value in metrics["test_seasonal_naive"].items()
             }
         )
-        mlflow.lightgbm.log_model(model, "lightgbm_demand_model")
+        mlflow.log_metrics(
+            {
+                f"test_moving_average_{name}": value
+                for name, value in metrics["test_moving_average"].items()
+            }
+        )
+        mlflow.set_tag("selection_champion", metrics["selection"]["champion"])
+        example = train[feature_columns].head(5)
+        mlflow.lightgbm.log_model(
+            model,
+            "lightgbm_demand_model",
+            signature=infer_signature(example, model.predict(example)),
+            input_example=example,
+        )
         mlflow.log_artifact(str(output_dir / "metrics.json"))
     return metrics
 

@@ -52,6 +52,7 @@ forecasting:
   demand:
     test_days: 7
     validation_days: 7
+    rolling_origin_folds: 2
     lag_hours: [1, 2, 3, 24, 168]
     rolling_windows_hours: [24, 168]
     statsforecast_top_zones: 10
