@@ -15,9 +15,11 @@ data/warehouse/
 data/logs/
 data/profiles/
 data/simulated/
+data/dashboard/
 dbt_project/target/
 dbt_project/logs/
 mlruns/
 artifacts/
 dagster_home/
 .env
+.streamlit/secrets.toml

@@ -2,17 +2,33 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
+from urllib.request import urlopen
 
 import duckdb
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
+
+def deployment_setting(name: str) -> str | None:
+    """Read a setting from a local environment or Streamlit Cloud Secrets."""
+    environment_value = os.environ.get(name)
+    if environment_value:
+        return environment_value
+    try:
+        return st.secrets.get(name)
+    except FileNotFoundError:
+        return None
+
+
 ROOT = Path(os.environ.get("NYC_MOBILITY_ROOT", Path.cwd()))
 WAREHOUSE = Path(os.environ.get("WAREHOUSE_PATH", ROOT / "data/warehouse/nyc_mobility.duckdb"))
+WAREHOUSE_URL = deployment_setting("DASHBOARD_WAREHOUSE_URL")
+WAREHOUSE_SHA256 = deployment_setting("DASHBOARD_WAREHOUSE_SHA256")
 DEMAND_METRICS = ROOT / "artifacts/demand/metrics.json"
 ETA_METRICS = ROOT / "artifacts/eta/metrics.json"
 DQ_REPORT = ROOT / "artifacts/monitoring/dq_report.json"
@@ -29,12 +45,39 @@ def metric_rows(metrics: dict[str, float]) -> pd.DataFrame:
     return pd.DataFrame({"metric": list(metrics), "value": list(metrics.values())})
 
 
+@st.cache_resource(show_spinner="Preparing dashboard data…")
+def dashboard_warehouse() -> Path:
+    """Return a local warehouse or download an explicitly configured snapshot once."""
+    if not WAREHOUSE_URL:
+        return WAREHOUSE
+    cache_dir = Path(os.environ.get("DASHBOARD_CACHE_DIR", "/tmp/nyc-mobility-dashboard"))
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    destination = cache_dir / "nyc_dashboard_snapshot.duckdb"
+    if destination.exists():
+        return destination
+    partial = destination.with_suffix(".part")
+    digest = hashlib.sha256()
+    try:
+        with urlopen(WAREHOUSE_URL, timeout=120) as response, partial.open("wb") as output:
+            while chunk := response.read(1024 * 1024):
+                digest.update(chunk)
+                output.write(chunk)
+        if WAREHOUSE_SHA256 and digest.hexdigest().lower() != WAREHOUSE_SHA256.lower():
+            raise ValueError("DASHBOARD_WAREHOUSE_SHA256 does not match the downloaded snapshot")
+    except Exception:
+        partial.unlink(missing_ok=True)
+        raise
+    partial.replace(destination)
+    return destination
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def read_table(table_name: str) -> pd.DataFrame:
     """Read a permitted Gold/Silver table through a short-lived read-only connection."""
     allowed = {
         "agg_od_matrix",
         "agg_zone_hour_demand",
+        "dashboard_health",
         "dim_zone",
         "fct_trips",
         "kpi_driver_economics",
@@ -43,9 +86,10 @@ def read_table(table_name: str) -> pd.DataFrame:
     }
     if table_name not in allowed:
         raise ValueError(f"Unsupported dashboard table: {table_name}")
-    if not WAREHOUSE.exists():
+    warehouse = dashboard_warehouse()
+    if not warehouse.exists():
         return pd.DataFrame()
-    connection = duckdb.connect(str(WAREHOUSE), read_only=True)
+    connection = duckdb.connect(str(warehouse), read_only=True)
     try:
         return connection.sql(f"select * from {table_name}").df()
     except duckdb.CatalogException:
@@ -55,12 +99,24 @@ def read_table(table_name: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def read_artifact(path: str) -> dict:
+def read_artifact(path: str, snapshot_name: str) -> dict:
     """Read a model report only when its local artifact exists."""
     artifact = Path(path)
-    if not artifact.exists():
+    if artifact.exists():
+        return json.loads(artifact.read_text(encoding="utf-8"))
+    warehouse = dashboard_warehouse()
+    if not warehouse.exists():
         return {}
-    return json.loads(artifact.read_text(encoding="utf-8"))
+    connection = duckdb.connect(str(warehouse), read_only=True)
+    try:
+        row = connection.execute(
+            "select contents from dashboard_artifacts where artifact_name = ?", [snapshot_name]
+        ).fetchone()
+    except duckdb.CatalogException:
+        return {}
+    finally:
+        connection.close()
+    return json.loads(row[0]) if row else {}
 
 
 def prepare_datetime(frame: pd.DataFrame, column: str) -> pd.DataFrame:
@@ -167,7 +223,7 @@ def render_od_flows() -> None:
 
 def render_eta_performance() -> None:
     st.header("ETA model performance")
-    metrics = read_artifact(str(ETA_METRICS))
+    metrics = read_artifact(str(ETA_METRICS), "eta_metrics")
     if not metrics:
         st.warning("Run `make train-eta` to create local ETA evaluation artifacts.")
         return
@@ -188,7 +244,7 @@ def render_eta_performance() -> None:
 
 def render_forecast_evaluation() -> None:
     st.header("Forecast evaluation")
-    metrics = read_artifact(str(DEMAND_METRICS))
+    metrics = read_artifact(str(DEMAND_METRICS), "demand_metrics")
     if not metrics:
         st.warning("Run `make train-demand` to create local demand evaluation artifacts.")
         return
@@ -211,15 +267,22 @@ def render_data_health() -> None:
     st.header("Data health")
     trips = read_table("fct_trips")
     quarantine = read_table("silver_trips_quarantine")
+    health = read_table("dashboard_health")
+    gold_trip_count = int(health.iloc[0].gold_trip_count) if not health.empty else len(trips)
+    quarantine_count = (
+        int(health.iloc[0].quarantine_row_count) if not health.empty else len(quarantine)
+    )
     cards = st.columns(3)
-    cards[0].metric("Gold trips", f"{len(trips):,}")
-    cards[1].metric("Quarantined rows", f"{len(quarantine):,}")
+    cards[0].metric("Gold trips", f"{gold_trip_count:,}")
+    cards[1].metric("Quarantined rows", f"{quarantine_count:,}")
     reject_rate = (
-        len(quarantine) / (len(trips) + len(quarantine)) if len(trips) + len(quarantine) else 0.0
+        quarantine_count / (gold_trip_count + quarantine_count)
+        if gold_trip_count + quarantine_count
+        else 0.0
     )
     cards[2].metric("Reject rate", as_percent(reject_rate))
-    dq_report = read_artifact(str(DQ_REPORT))
-    drift_report = read_artifact(str(DRIFT_REPORT))
+    dq_report = read_artifact(str(DQ_REPORT), "dq_report")
+    drift_report = read_artifact(str(DRIFT_REPORT), "drift_report")
     status = pd.DataFrame(
         {
             "asset": [
@@ -230,7 +293,7 @@ def render_data_health() -> None:
                 "Drift report",
             ],
             "available": [
-                WAREHOUSE.exists(),
+                dashboard_warehouse().exists(),
                 DEMAND_METRICS.exists(),
                 ETA_METRICS.exists(),
                 DQ_REPORT.exists(),

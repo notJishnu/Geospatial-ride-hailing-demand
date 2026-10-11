@@ -72,10 +72,13 @@ The default month is `2024-01`; add months deliberately in `config/settings.yaml
 | Run ETA API | `make api` |
 | Build/run API container | `make docker-api` |
 | Start dashboard | `make dashboard` |
+| Build deployable dashboard snapshot | `make dashboard-snapshot` |
 | Run data quality | `make quality` |
 | Run drift report | `make drift` |
 
 The API requires a locally registered MLflow ETA model and read-only warehouse. The dashboard reads Gold marts directly from DuckDB.
+
+For Streamlit Cloud, generate a small dashboard snapshot and configure its approved URL/checksum in app Secrets; see [deployment.md](docs/deployment.md). Raw TLC data and the full local warehouse are never deployed from Git.
 
 ## Quality and CI
 
