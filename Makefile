@@ -1,4 +1,4 @@
-.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build train-demand train-eta dagster-ui dagster-partition api docker-api dashboard quality drift
+.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build train-demand train-eta dagster-ui dagster-partition api docker-api dashboard quality drift simulate-kolkata replay
 
 install:
 	uv sync --all-extras
@@ -72,3 +72,9 @@ quality:
 
 drift:
 	uv run python -m monitoring.drift_report
+
+simulate-kolkata:
+	uv run python -m stretch.kolkata_simulated
+
+replay:
+	uv run python -m stretch.replay --month 2024-01 --limit 100 --speedup 3600

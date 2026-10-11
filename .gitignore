@@ -14,6 +14,7 @@ data/manifests/
 data/warehouse/
 data/logs/
 data/profiles/
+data/simulated/
 dbt_project/target/
 dbt_project/logs/
 mlruns/

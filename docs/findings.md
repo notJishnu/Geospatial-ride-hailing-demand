@@ -9,3 +9,9 @@ These are descriptive findings from one month of cleaned NYC HVFHV data. They ar
 5. **Base-fare economics show a sizeable residual after driver pay.** Total base passenger fares were $470.95M and driver pay was $359.13M, leaving a $111.83M approximate residual (23.75% of base fares). This is not verified platform profit: tolls, taxes, incentives, operations, and fields outside the approximation are excluded.
 
 Additional coverage note: 741,513 valid trips had an unknown/outside-NYC endpoint (zone 264 or 265). They remain in `fct_trips` but are excluded from geographic demand and OD marts to avoid misleading maps and zone features.
+
+## Model evaluation
+
+- The final demand holdout favored the seasonal-naive benchmark (13.42% WAPE) over the current LightGBM candidate (13.56% WAPE). The benchmark remains the demand champion; one January partition is not enough evidence to promote the more complex model.
+- The leakage-safe LightGBM ETA candidate achieved 224.47 seconds MAE on the final holdout, improving on the historical OD-duration baseline at 264.63 seconds. Its 5-minute accuracy was 76.65%.
+- ETA error is materially higher on airport and cross-borough proxy trips. This indicates where a larger, multi-month training window and route-aware features may help; it does not establish a causal bridge, tunnel, or weather effect.

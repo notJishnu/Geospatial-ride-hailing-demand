@@ -20,3 +20,6 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pytest
+      # Parsing validates models without downloading Git-ignored TLC data.
+      - run: uv run dbt parse --project-dir dbt_project --profiles-dir dbt_project
+      - run: docker build --tag nyc-mobility-eta:ci .

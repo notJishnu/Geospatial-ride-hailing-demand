@@ -35,3 +35,9 @@ One TLC zone polygon reference row per `zone_id`, with WGS84 centroid longitude/
 ## ETA training artifacts
 
 Phase 6 reads `fct_trips` and predicts `actual_trip_seconds`. Its pre-trip feature set explicitly excludes actual `trip_miles`, fares, driver pay, dropoff time, and post-trip duration/speed fields. Historical OD distance, speed, and duration are aggregated only through the completed hour before a request; cold starts fall back to pickup-zone and then citywide history. Airport reporting uses TLC zones 1, 132, and 138. The cross-borough slice is a reporting proxy, not a determination that a route uses a specific bridge or tunnel.
+
+## Serving and monitoring artifacts
+
+The FastAPI `POST /predict/eta` request contains pickup zone, dropoff zone, an offset-aware request timestamp, and optional precipitation. Its response contains ETA minutes, an empirical P90-absolute-error band, and MLflow model version. This band is not a calibrated probabilistic interval.
+
+`artifacts/monitoring/dq_report.json` records Gold row counts, quarantine rate, duplicate IDs, invalid core values, and configured ETA MAE threshold status. `drift_status.json` records whether an Evidently comparison was generated; HTML/JSON drift reports are created only for two distinct completed months.
