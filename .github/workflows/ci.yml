@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.11"
       # Unit tests import components from every optional runtime surface.
-      - run: uv sync --all-extras --extra dev
+      - run: uv sync --all-extras
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pytest
