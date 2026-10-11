@@ -15,7 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: uv sync --extra dev
+      # Unit tests import components from every optional runtime surface.
+      - run: uv sync --all-extras
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pytest

@@ -75,3 +75,16 @@ forecasting:
       n_estimators: 500
       random_state: 42
       n_jobs: 4
+
+monitoring:
+  output_dir: artifacts/monitoring
+  thresholds:
+    max_reject_rate: 0.02
+    max_eta_mae_increase_fraction: 0.15
+    eta_baseline_mae_seconds: 224.46922304371282
+  drift:
+    # Set current_month only after a second completed monthly partition exists.
+    reference_month: "2024-01"
+    current_month: null
+    sample_size: 50000
+    max_drifted_columns_share: 0.3

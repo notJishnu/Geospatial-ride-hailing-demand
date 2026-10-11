@@ -43,3 +43,9 @@ To run the container, first train and register the ETA model locally, then use `
 ## Streamlit dashboard
 
 Run `make dashboard` after building Gold models. The dashboard reads DuckDB in read-only mode and caches tables for ten minutes. It has demand-map, zone-KPI, OD-flow, ETA-evaluation, forecast-evaluation, and data-health views. Map points are TLC zone centroids, not trip GPS coordinates; model pages report saved holdout metrics and never invent future forecasts.
+
+## Data quality and drift monitoring
+
+Run `make quality` after each completed warehouse refresh. It writes `artifacts/monitoring/dq_report.json` and exits non-zero for a reject rate over 2%, duplicate Gold trip IDs, null core timestamps, invalid Gold durations, or an ETA MAE more than 15% above the configured 224.47-second baseline. Inspect the report before retrying: quarantine rows are expected to exist and must never be deleted to silence the alert.
+
+Run `make drift` only after setting `monitoring.drift.current_month` in `config/settings.yaml` to a completed month distinct from `reference_month`. Install the monitoring extra (`uv sync --all-extras`) when needed. It samples up to 50,000 geographic-valid trips per month, produces an Evidently HTML/JSON report under `artifacts/monitoring/`, and alerts when more than 30% of monitored columns drift. Review input-source, weather, and operations changes before treating drift as a model issue; retrain only after confirming the change is real and representative.

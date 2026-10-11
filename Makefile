@@ -1,4 +1,4 @@
-.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build train-demand train-eta dagster-ui dagster-partition api docker-api dashboard
+.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build train-demand train-eta dagster-ui dagster-partition api docker-api dashboard quality drift
 
 install:
 	uv sync --all-extras
@@ -66,3 +66,9 @@ docker-api:
 
 dashboard:
 	uv run streamlit run dashboard/app.py
+
+quality:
+	uv run python -m monitoring.dq_checks
+
+drift:
+	uv run python -m monitoring.drift_report
