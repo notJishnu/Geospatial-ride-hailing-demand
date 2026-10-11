@@ -17,9 +17,9 @@ jobs:
           python-version: "3.11"
       # Unit tests import components from every optional runtime surface.
       - run: uv sync --all-extras
-      - run: uv run ruff format --check 
-      - run: uv run ruff check 
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
       - run: uv run pytest
       # Parsing validates models without downloading Git-ignored TLC data.
       - run: uv run dbt parse --project-dir dbt_project --profiles-dir dbt_project
-      - run: docker build --tag nyc-mobility-eta:ci 
+      - run: docker build --tag nyc-mobility-eta:ci .
