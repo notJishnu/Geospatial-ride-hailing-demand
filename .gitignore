@@ -18,4 +18,5 @@ dbt_project/target/
 dbt_project/logs/
 mlruns/
 artifacts/
+dagster_home/
 .env

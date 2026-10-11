@@ -1,4 +1,4 @@
-.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build train-demand
+.PHONY: install lock format format-check lint test check download download-tlc download-ref download-weather profile dbt-debug dbt-build train-demand train-eta dagster-ui dagster-partition api docker-api dashboard
 
 install:
 	uv sync --all-extras
@@ -48,3 +48,21 @@ dbt-build:
 
 train-demand:
 	uv run python -m ml.train_demand
+
+train-eta:
+	uv run python -m ml.train_eta
+
+dagster-ui:
+	uv run dagster dev -w orchestration/workspace.yaml
+
+dagster-partition:
+	uv run python -m orchestration.dagster_project.run_partition --partition 2024-01-01
+
+api:
+	uv run uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+
+docker-api:
+	docker compose up --build eta-api
+
+dashboard:
+	uv run streamlit run dashboard/app.py

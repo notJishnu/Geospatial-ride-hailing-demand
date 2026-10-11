@@ -31,3 +31,7 @@ One TLC zone polygon reference row per `zone_id`, with WGS84 centroid longitude/
 `dim_zone` exposes zone lookup and display-centroid attributes; `dim_date_hour` provides local-time weather, holiday, and manual-event attributes.
 
 `agg_zone_hour_demand`, `agg_od_matrix`, and `kpi_zone_daily` exclude zone IDs 264/265 from geographic aggregation. `kpi_driver_economics` is grouped by licensed HVFHS base/day, not individual drivers, because the source contains no driver identities.
+
+## ETA training artifacts
+
+Phase 6 reads `fct_trips` and predicts `actual_trip_seconds`. Its pre-trip feature set explicitly excludes actual `trip_miles`, fares, driver pay, dropoff time, and post-trip duration/speed fields. Historical OD distance, speed, and duration are aggregated only through the completed hour before a request; cold starts fall back to pickup-zone and then citywide history. Airport reporting uses TLC zones 1, 132, and 138. The cross-borough slice is a reporting proxy, not a determination that a route uses a specific bridge or tunnel.

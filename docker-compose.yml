@@ -1,0 +1,12 @@
+services:
+  eta-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      MLFLOW_TRACKING_DIR: /app/mlruns
+      WAREHOUSE_PATH: /app/data/warehouse/nyc_mobility.duckdb
+      ETA_MODEL_VERSION: "1"
+    volumes:
+      - ./mlruns:/app/mlruns:ro
+      - ./data/warehouse:/app/data/warehouse:ro
