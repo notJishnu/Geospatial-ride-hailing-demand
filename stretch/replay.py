@@ -25,7 +25,7 @@ def replay_delays(timestamps: list[float], speedup: float) -> list[float]:
         0.0,
         *[
             max(0.0, (current - previous) / speedup)
-            for previous, current in zip(timestamps, timestamps[1:], strict=True)
+            for previous, current in zip(timestamps, timestamps[1:])
         ],
     ]
 
