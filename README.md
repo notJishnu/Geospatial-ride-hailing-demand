@@ -80,6 +80,8 @@ The API requires a locally registered MLflow ETA model and read-only warehouse. 
 
 For Streamlit Cloud, generate a small dashboard snapshot and configure its approved URL/checksum in app Secrets; see [deployment.md](docs/deployment.md). Raw TLC data and the full local warehouse are never deployed from Git.
 
+The dashboard snapshot can also refresh weekly and publish to a stable GitHub Release asset; configure the source-warehouse Actions secrets described in [the deployment guide](docs/deployment.md).
+
 ## Quality and CI
 
 GitHub Actions installs all optional dependencies, checks Ruff formatting/linting, runs pytest, parses the dbt project, and builds the API Docker image. CI does not download or commit TLC data; run `make dbt-build` locally after ingestion.

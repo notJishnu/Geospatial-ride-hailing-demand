@@ -29,6 +29,7 @@ ROOT = Path(os.environ.get("NYC_MOBILITY_ROOT", Path.cwd()))
 WAREHOUSE = Path(os.environ.get("WAREHOUSE_PATH", ROOT / "data/warehouse/nyc_mobility.duckdb"))
 WAREHOUSE_URL = deployment_setting("DASHBOARD_WAREHOUSE_URL")
 WAREHOUSE_SHA256 = deployment_setting("DASHBOARD_WAREHOUSE_SHA256")
+WAREHOUSE_MANIFEST_URL = deployment_setting("DASHBOARD_WAREHOUSE_MANIFEST_URL")
 DEMAND_METRICS = ROOT / "artifacts/demand/metrics.json"
 ETA_METRICS = ROOT / "artifacts/eta/metrics.json"
 DQ_REPORT = ROOT / "artifacts/monitoring/dq_report.json"
@@ -45,24 +46,42 @@ def metric_rows(metrics: dict[str, float]) -> pd.DataFrame:
     return pd.DataFrame({"metric": list(metrics), "value": list(metrics.values())})
 
 
-@st.cache_resource(show_spinner="Preparing dashboard data…")
+def remote_warehouse_settings() -> tuple[str | None, str | None]:
+    """Resolve a static URL/checksum pair or a refreshable release manifest."""
+    if not WAREHOUSE_MANIFEST_URL:
+        return WAREHOUSE_URL, WAREHOUSE_SHA256
+    try:
+        with urlopen(WAREHOUSE_MANIFEST_URL, timeout=30) as response:
+            manifest = json.loads(response.read())
+    except Exception as error:
+        raise RuntimeError("Could not retrieve DASHBOARD_WAREHOUSE_MANIFEST_URL") from error
+    url = manifest.get("url")
+    checksum = manifest.get("sha256")
+    if not isinstance(url, str) or not isinstance(checksum, str):
+        raise ValueError("Dashboard manifest must contain string 'url' and 'sha256' values")
+    return url, checksum
+
+
+@st.cache_resource(ttl=3600, show_spinner="Preparing dashboard data…")
 def dashboard_warehouse() -> Path:
     """Return a local warehouse or download an explicitly configured snapshot once."""
-    if not WAREHOUSE_URL:
+    warehouse_url, warehouse_sha256 = remote_warehouse_settings()
+    if not warehouse_url:
         return WAREHOUSE
     cache_dir = Path(os.environ.get("DASHBOARD_CACHE_DIR", "/tmp/nyc-mobility-dashboard"))
     cache_dir.mkdir(parents=True, exist_ok=True)
-    destination = cache_dir / "nyc_dashboard_snapshot.duckdb"
+    suffix = warehouse_sha256.lower() if warehouse_sha256 else "current"
+    destination = cache_dir / f"nyc_dashboard_snapshot_{suffix}.duckdb"
     if destination.exists():
         return destination
     partial = destination.with_suffix(".part")
     digest = hashlib.sha256()
     try:
-        with urlopen(WAREHOUSE_URL, timeout=120) as response, partial.open("wb") as output:
+        with urlopen(warehouse_url, timeout=120) as response, partial.open("wb") as output:
             while chunk := response.read(1024 * 1024):
                 digest.update(chunk)
                 output.write(chunk)
-        if WAREHOUSE_SHA256 and digest.hexdigest().lower() != WAREHOUSE_SHA256.lower():
+        if warehouse_sha256 and digest.hexdigest().lower() != warehouse_sha256.lower():
             raise ValueError("DASHBOARD_WAREHOUSE_SHA256 does not match the downloaded snapshot")
     except Exception:
         partial.unlink(missing_ok=True)

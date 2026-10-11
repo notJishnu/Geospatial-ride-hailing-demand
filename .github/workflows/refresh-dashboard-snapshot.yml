@@ -1,0 +1,56 @@
+name: Refresh dashboard snapshot
+
+on:
+  schedule:
+    # Weekly on Monday. The workflow publishes the most recently refreshed source warehouse.
+    - cron: "17 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-snapshot:
+    runs-on: ubuntu-latest
+    env:
+      DASHBOARD_SOURCE_WAREHOUSE_URL: ${{ secrets.DASHBOARD_SOURCE_WAREHOUSE_URL }}
+      DASHBOARD_SOURCE_WAREHOUSE_SHA256: ${{ secrets.DASHBOARD_SOURCE_WAREHOUSE_SHA256 }}
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: dashboard-data-latest
+      SNAPSHOT_PATH: data/dashboard/nyc_dashboard_snapshot.duckdb
+      SOURCE_PATH: data/warehouse/nyc_mobility.duckdb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.6.5"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install snapshot dependencies
+        run: uv sync
+      - name: Download refreshed source warehouse
+        shell: bash
+        run: |
+          test -n "$DASHBOARD_SOURCE_WAREHOUSE_URL" || {
+            echo "Set DASHBOARD_SOURCE_WAREHOUSE_URL in GitHub Actions secrets." >&2
+            exit 1
+          }
+          mkdir -p "$(dirname "$SOURCE_PATH")"
+          curl --fail --location --retry 3 --output "$SOURCE_PATH" "$DASHBOARD_SOURCE_WAREHOUSE_URL"
+          if [ -n "$DASHBOARD_SOURCE_WAREHOUSE_SHA256" ]; then
+            echo "$DASHBOARD_SOURCE_WAREHOUSE_SHA256  $SOURCE_PATH" | sha256sum --check --status
+          fi
+      - name: Build compact dashboard snapshot
+        run: uv run python -m dashboard.snapshot --source "$SOURCE_PATH" --output "$SNAPSHOT_PATH"
+      - name: Publish stable release asset
+        shell: bash
+        run: |
+          sha256sum "$SNAPSHOT_PATH" > "$SNAPSHOT_PATH.sha256"
+          snapshot_hash="$(cut -d ' ' -f 1 "$SNAPSHOT_PATH.sha256")"
+          snapshot_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/nyc_dashboard_snapshot.duckdb"
+          printf '{"url":"%s","sha256":"%s"}\n' "$snapshot_url" "$snapshot_hash" > dashboard-manifest.json
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" --title "Latest dashboard data" \
+              --notes "Automated dashboard snapshot. This release asset is replaced on each refresh."
+          gh release upload "$RELEASE_TAG" "$SNAPSHOT_PATH" "$SNAPSHOT_PATH.sha256" dashboard-manifest.json --clobber
